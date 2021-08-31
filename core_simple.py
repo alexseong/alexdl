@@ -256,7 +256,7 @@ def rdiv(x0, x1):
         
     return Div()(x1, x0)
 
-def setup_variable:
+def setup_variable():
     Variable.__add__ = add
     Variable.__radd__ = add
     Variable.__mul__ = mul
