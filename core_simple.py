@@ -1,5 +1,21 @@
+import numpy as np
+import weakref
+import contextlib
+
 class Config:
     enable_backprop = True
+
+@contextlib.contextmanager
+def using_config(name, value):
+    old_value = getattr(Config, name)
+    setattr(Config, name, value)
+    try:
+        yield
+    finally:
+        setattr(Config, name, old_value)
+
+def no_grad():
+    return using_config('enable_backprop', False)
 
 class Variable:
     __array_priority__ = 200
@@ -84,6 +100,17 @@ class Variable:
         p = str(self.data).replace('\n', '\n' + ' ' * 9)
         return 'variable(' + p + ')'
 
+def as_array(x):
+    if np.isscalar(x):
+        return np.array(x)
+    return x 
+
+def as_variable(obj):
+    if isinstance(obj, Variable):
+        return obj
+    return Variable(obj)
+
+
 class Function:
     def __call__(self, *inputs):
         inputs = [as_variable(x) for x in inputs]
@@ -135,6 +162,42 @@ class Neg(Function):
     def backward(self, gy):
         return -gy
 
+class Sub(Function):
+    def forward(self, x0, x1):
+        y = x0 - x1
+        return y
+    
+    def backward(self, gy):
+        return gy, -gy
+
+class Pow(Function):
+    def __init__(self, c):
+        self.c = c
+        
+    def forward(self, x):
+        y = x ** self.c
+        return y
+    
+    def backward(self, gy):
+        x = self.inputs[0].data        
+        gx = self.c * x ** (self.c - 1) * gy
+        return gx
+    
+class Div(Function):
+    def forward(self, x0, x1):
+        y = x0 / x1
+        return y
+    
+    def backward(self, gy):
+        x0, x1 = self.inputs[0].data, self.inputs[1].data
+        gx0 = gy / x1
+        gx1 = gy * (-x0 / x1 **2)
+        return gx0, gx1
+    
+
+
+
+
 def add(x0, x1):
     if not isinstance(x0, np.ndarray):
         x0 = as_array(x0)
@@ -155,8 +218,52 @@ def mul(x0, x1):
 def neg(x):
     return Neg()(x)
 
-Variable.__add__ = add
-Variable.__radd__ = add
-Variable.__mul__ = mul
-Variable.__rmul__ = mul
-Variable.__neg__ = neg
+def sub(x0, x1):
+    if not isinstance(x0, np.ndarray):
+        x0 = as_array(x0)
+        
+    if not isinstance(x1, np.ndarray):
+        x1 = as_array(x1)
+        
+    return Sub()(x0, x1)
+
+def rsub(x0, x1):
+    if not isinstance(x0, np.ndarray):
+        x0 = as_array(x0)
+        
+    if not isinstance(x1, np.ndarray):
+        x1 = as_array(x1)
+        
+    return Sub()(x1, x0)
+
+def pow(x, c):
+    return Pow(c)(x)
+
+def div(x0, x1):
+    if not isinstance(x0, np.ndarray):
+        x0 = as_array(x0)
+        
+    if not isinstance(x1, np.ndarray):
+        x1 = as_array(x1)
+    return Div()(x0, x1)
+
+def rdiv(x0, x1):
+    if not isinstance(x0, np.ndarray):
+        x0 = as_array(x0)
+        
+    if not isinstance(x1, np.ndarray):
+        x1 = as_array(x1)
+        
+    return Div()(x1, x0)
+
+def setup_variable:
+    Variable.__add__ = add
+    Variable.__radd__ = add
+    Variable.__mul__ = mul
+    Variable.__rmul__ = mul
+    Variable.__neg__ = neg
+    Variable.__sub__ = sub
+    Variable.__rsub__ = rsub
+    Variable.__pow__ = pow
+    Variable.__truediv__ = div
+    Variable.__rtruediv__ = rdiv
