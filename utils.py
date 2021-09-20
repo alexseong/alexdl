@@ -13,7 +13,7 @@ def _dot_var(v, verbose=False):
 
 
 def _dot_func(f):
-	dot_func = '{} [label="{}", color=lightblue, style=filled]\n'
+	dot_func = '{} [label="{}", color=lightblue, style=filled, shape=box]\n'
 	txt = dot_func.format(id(f), f.__class__.__name__)
 
 	dot_edge = '{} -> {}\n'
